@@ -4,6 +4,8 @@ import { TAU, rgba, text } from './draw';
 /** A2 — scope graticule, triggered waveform, polar waveform ring + delay-embedded Lissajous phase plot. */
 export function createOscilloscope(): VisualizerInstance {
   let spin = 0;
+  let level = 0.1;
+  let delay = 24;
   return {
     draw(ctx, w, h, f, p) {
       const u = p.unit;
@@ -67,6 +69,21 @@ export function createOscilloscope(): VisualizerInstance {
         }
       }
 
+      // auto-gain: fast-attack / slow-release level of the current frame, so any track fills the scope
+      let sq = 0;
+      let crossings = 0;
+      for (let i = 1; i < n; i++) {
+        sq += wf[i] * wf[i];
+        if (wf[i - 1] < 0 && wf[i] >= 0) crossings++;
+      }
+      level += (Math.sqrt(sq / n) - level) * (1 - Math.exp(-p.dt * 6));
+      const g = 0.55 / Math.max(0.01, level);
+      const S = (v: number) => Math.tanh(v * g); // soft-clipped, auto-gained sample
+      // Lissajous delay ≈ quarter period of the dominant pitch (pure tones → circles)
+      const period = crossings > 0 ? n / crossings : 400;
+      const dTarget = Math.max(4, Math.min(500, period * (0.18 + p.detail * 0.14)));
+      delay += (dTarget - delay) * (1 - Math.exp(-p.dt * 4));
+
       // ── circular geometry
       const cx = mx;
       const cy = ay + ah * 0.42;
@@ -94,7 +111,7 @@ export function createOscilloscope(): VisualizerInstance {
       for (let k = 0; k <= P; k++) {
         const s = wf[(trig + (k % P) * 2) % n];
         const ang = (k / P) * TAU + spin - Math.PI / 2;
-        const r = R * (0.78 + s * 0.6);
+        const r = R * (0.78 + S(s) * 0.24);
         const x = cx + Math.cos(ang) * r;
         const y = cy + Math.sin(ang) * r;
         if (k === 0) ctx.moveTo(x, y);
@@ -103,14 +120,14 @@ export function createOscilloscope(): VisualizerInstance {
       ctx.stroke();
 
       // Lissajous phase portrait: x = s[t], y = s[t + d]
-      const d = Math.round(8 + p.detail * 48);
+      const d = Math.round(delay);
       ctx.strokeStyle = accent;
       ctx.lineWidth = lw * 0.8;
       ctx.beginPath();
-      const amp = R * 0.62;
+      const amp = R * 0.58;
       for (let i = 0; i < n - d; i += 2) {
-        const x = cx + wf[i] * amp * 1.1;
-        const y = cy - wf[i + d] * amp * 1.1;
+        const x = cx + S(wf[i]) * amp;
+        const y = cy - S(wf[i + d]) * amp;
         if (i === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
       }
@@ -152,7 +169,7 @@ export function createOscilloscope(): VisualizerInstance {
       const step = Math.max(1, Math.floor(span / Math.max(200, aw / (2 * u))));
       for (let i = 0; i < span; i += step) {
         const x = ax + (i / span) * aw;
-        const y = sy - wf[trig + i] * sa * 1.6;
+        const y = sy - S(wf[trig + i]) * sa * 0.95;
         if (i === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
       }
