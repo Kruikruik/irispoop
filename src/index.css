@@ -1,0 +1,116 @@
+@import "tailwindcss";
+
+/* Palette lives in CSS variables so the whole UI follows the chosen theme live. */
+@theme inline {
+  --color-bg: var(--c-bg);
+  --color-ink: var(--c-ink);
+  --color-accent: var(--c-accent);
+  --font-mono: "JetBrains Mono", "Space Mono", ui-monospace, monospace;
+}
+
+:root {
+  --c-bg: #f4f3ee;
+  --c-ink: #111111;
+  --c-accent: #ff4d00;
+}
+
+/* hardware look: no rounded corners anywhere */
+*,
+*::before,
+*::after {
+  border-radius: 0 !important;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--c-bg);
+  color: var(--c-ink);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 120ms linear, color 120ms linear;
+}
+
+::selection {
+  background: var(--c-accent);
+  color: var(--c-bg);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--c-ink) transparent;
+}
+
+/* ── range input: 2px track with accent fill, square thumb ── */
+.hw-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 14px;
+  background: transparent;
+  cursor: pointer;
+}
+.hw-range::-webkit-slider-runnable-track {
+  height: 2px;
+  background: linear-gradient(
+    to right,
+    var(--c-accent) 0 var(--pct, 0%),
+    color-mix(in srgb, var(--c-ink) 25%, transparent) var(--pct, 0%) 100%
+  );
+}
+.hw-range::-moz-range-track {
+  height: 2px;
+  background: color-mix(in srgb, var(--c-ink) 25%, transparent);
+}
+.hw-range::-moz-range-progress {
+  height: 2px;
+  background: var(--c-accent);
+}
+.hw-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 10px;
+  height: 14px;
+  margin-top: -6px;
+  background: var(--c-ink);
+  border: 1px solid var(--c-bg);
+}
+.hw-range::-moz-range-thumb {
+  width: 10px;
+  height: 14px;
+  background: var(--c-ink);
+  border: 1px solid var(--c-bg);
+}
+.hw-range:focus-visible {
+  outline: 1px solid var(--c-accent);
+  outline-offset: 2px;
+}
+
+/* ── colour swatch input ── */
+.hw-color {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--c-ink);
+  background: transparent;
+  cursor: pointer;
+}
+.hw-color::-webkit-color-swatch-wrapper {
+  padding: 2px;
+}
+.hw-color::-webkit-color-swatch {
+  border: none;
+}
+.hw-color::-moz-color-swatch {
+  border: none;
+}
+
+button {
+  cursor: pointer;
+}
