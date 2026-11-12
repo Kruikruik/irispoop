@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { Palette } from '../utils/themes';
 import { THEMES, samePalette } from '../utils/themes';
 import { VISUALIZERS, type VisualizerId } from '../visualizers';
@@ -5,6 +6,11 @@ import { SheetControls, type SheetImage, type SheetParams } from '../visualizers
 import { ColorField, Section, Segmented, Slider, Toggle } from './ui';
 
 export type Mode = 'visualizer' | 'sheet';
+
+const SWATCHES = [
+  '#FFFFFF', '#F4F3EE', '#E7ECEF', '#B8C4CC', '#6B7780', '#22303A', '#111111', '#0A192F',
+  '#FF4D00', '#E63946', '#EC4899', '#8B5CF6', '#3B9BE0', '#64FFDA', '#00FF66', '#F59E0B',
+];
 
 export interface Tuning {
   gainDb: number;
@@ -31,6 +37,7 @@ export function ControlPanel(props: {
   onUploadImage: (f: File) => void;
 }) {
   const { palette, onPalette, mode, tuning, onTuning } = props;
+  const [target, setTarget] = useState<keyof Palette>('accent');
   const setT = <K extends keyof Tuning>(k: K, v: Tuning[K]) => onTuning({ ...tuning, [k]: v });
 
   return (
@@ -59,10 +66,44 @@ export function ControlPanel(props: {
             );
           })}
         </div>
-        <div className="space-y-1.5 pt-1">
-          <ColorField label="BG_HEX" value={palette.bg} onChange={(v) => onPalette({ ...palette, bg: v })} />
-          <ColorField label="INK_HEX" value={palette.ink} onChange={(v) => onPalette({ ...palette, ink: v })} />
-          <ColorField label="ACC_HEX" value={palette.accent} onChange={(v) => onPalette({ ...palette, accent: v })} />
+        <div className="space-y-1 pt-1">
+          {(
+            [
+              ['bg', 'BG_HEX'],
+              ['ink', 'INK_HEX'],
+              ['accent', 'ACC_HEX'],
+            ] as const
+          ).map(([k, l]) => (
+            <ColorField
+              key={k}
+              label={l}
+              value={palette[k]}
+              active={target === k}
+              onActivate={() => setTarget(k)}
+              onChange={(v) => onPalette({ ...palette, [k]: v })}
+            />
+          ))}
+        </div>
+        <div>
+          <div className="mb-1 flex justify-between text-[9px] tracking-[0.18em] opacity-60">
+            <span>QUICK_SWATCH</span>
+            <span>
+              → <span className="text-accent">{target === 'bg' ? 'BG' : target === 'ink' ? 'INK' : 'ACC'}</span>
+            </span>
+          </div>
+          <div className="grid grid-cols-8 gap-1">
+            {SWATCHES.map((c) => (
+              <button
+                type="button"
+                key={c}
+                title={`${c} → ${target.toUpperCase()}`}
+                aria-label={`swatch ${c}`}
+                onClick={() => onPalette({ ...palette, [target]: c })}
+                className={`h-6 border ${palette[target].toUpperCase() === c ? 'border-accent outline outline-1 outline-accent' : 'border-ink/40 hover:border-ink'}`}
+                style={{ background: c }}
+              />
+            ))}
+          </div>
         </div>
       </Section>
 

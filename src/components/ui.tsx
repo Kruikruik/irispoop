@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { normalizeHex } from '../utils/themes';
 
 export function Section({ index, title, right, children }: { index: string; title: string; right?: ReactNode; children: ReactNode }) {
@@ -139,32 +139,89 @@ export function Segmented<T extends string>({
   );
 }
 
-/** Colour picker + editable hex field. */
-export function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+/** Keeps only hex digits; if more than 6 were typed, the last 6 win. */
+const hexDigits = (v: string): string => {
+  const d = v.replace(/[^0-9a-f]/gi, '');
+  return d.length > 6 ? d.slice(-6) : d;
+};
+
+/** Colour swatch (opens the system picker) + forgiving hex field. */
+export function ColorField({
+  label,
+  value,
+  onChange,
+  active = false,
+  onActivate,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  active?: boolean;
+  onActivate?: () => void;
+}) {
   const [draft, setDraft] = useState(value);
-  useEffect(() => setDraft(value), [value]);
+  const [editing, setEditing] = useState(false);
+  const justFocused = useRef(false);
+  useEffect(() => {
+    if (!editing) setDraft(value);
+  }, [value, editing]);
   const commit = (v: string) => {
-    const n = normalizeHex(v);
+    const n = normalizeHex(hexDigits(v));
     if (n) onChange(n);
-    else setDraft(value);
+    setDraft(n ?? value);
+    setEditing(false);
   };
   return (
-    <div className="flex items-center gap-2 text-[10px] tracking-[0.18em]">
-      <span className="w-16 shrink-0">{label}</span>
-      <input type="color" className="hw-color" value={value.length === 7 ? value : '#000000'} onChange={(e) => onChange(e.target.value.toUpperCase())} />
+    <div
+      className={`flex items-center gap-2 border px-1 py-1 text-[10px] tracking-[0.18em] ${active ? 'border-accent' : 'border-transparent'}`}
+      onPointerDown={onActivate}
+    >
+      <span className={`w-16 shrink-0 pl-1 ${active ? 'text-accent' : ''}`}>{label}</span>
+      <label
+        className="relative h-8 w-10 shrink-0 cursor-pointer border border-ink"
+        style={{ background: value }}
+        title="Choose a colour"
+      >
+        <input
+          type="color"
+          aria-label={`${label} picker`}
+          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+          value={(normalizeHex(value) ?? '#000000').toLowerCase()}
+          onChange={(e) => onChange(e.target.value.toUpperCase())}
+        />
+      </label>
       <input
-        className="h-7 min-w-0 flex-1 border border-ink/40 bg-transparent px-2 uppercase tabular-nums outline-none focus:border-accent"
+        aria-label={label}
+        className="h-8 min-w-0 flex-1 border border-ink/40 bg-transparent px-2 uppercase tabular-nums outline-none focus:border-accent"
         value={draft}
         spellCheck={false}
-        maxLength={7}
+        autoComplete="off"
+        onFocus={(e) => {
+          setEditing(true);
+          justFocused.current = true;
+          e.target.select();
+          onActivate?.();
+        }}
+        onMouseUp={(e) => {
+          // keep the select-all from onFocus so typing replaces the whole code
+          if (justFocused.current) {
+            e.preventDefault();
+            justFocused.current = false;
+          }
+        }}
         onChange={(e) => {
           setDraft(e.target.value);
-          const n = normalizeHex(e.target.value);
-          if (n && e.target.value.replace('#', '').length === 6) onChange(n);
+          const d = hexDigits(e.target.value);
+          if (d.length === 6) onChange(`#${d.toUpperCase()}`);
         }}
         onBlur={(e) => commit(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') commit((e.target as HTMLInputElement).value);
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+          if (e.key === 'Escape') {
+            setDraft(value);
+            setEditing(false);
+            (e.target as HTMLInputElement).blur();
+          }
         }}
       />
     </div>
