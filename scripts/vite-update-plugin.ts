@@ -117,6 +117,10 @@ export function updater(): Plugin {
     configResolved(c) {
       root = c.root;
     },
+    // marks pages served with this plugin, so the UPDATE button only shows (and only calls the API) where it works
+    transformIndexHtml() {
+      return [{ tag: 'meta', attrs: { name: 'iris-updater', content: '1' }, injectTo: 'head' }];
+    },
     configureServer(server) {
       mode = 'dev';
       server.middlewares.use(use(handler));

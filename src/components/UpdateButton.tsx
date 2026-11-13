@@ -55,6 +55,7 @@ export function UpdateButton() {
   const wrap = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async (refresh = false): Promise<Status | null> => {
+    if (!document.querySelector('meta[name="iris-updater"]')) return null;
     try {
       const r = await fetch(`/__update/status${refresh ? '?refresh=1' : ''}`, { cache: 'no-store' });
       if (!r.ok) return null;

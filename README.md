@@ -14,39 +14,42 @@ Vite + React + TypeScript + Tailwind CSS. Rien n'est envoyé sur un serveur : te
 - **Export** : `EXPORT PNG` (pleine résolution, ≥1920 px) et `RECORD VIDEO` (MP4 sous Chrome/Edge récents, sinon WebM, avec le son synchronisé). L'enregistrement s'arrête tout seul à la fin du morceau.
 - Raccourcis : `Espace` lecture/pause, `P` export PNG.
 
-## Lancer le site sur ton PC (Windows)
+## Installer ou mettre à jour en une ligne (Windows)
 
-1. Installer **Node.js LTS** : <https://nodejs.org> (bouton « LTS », installer avec les options par défaut).
-2. Installer **Git** si besoin : <https://git-scm.com/download/win>.
-3. Ouvrir **PowerShell** et taper :
-
-   ```powershell
-   cd $HOME\Documents
-   git clone https://github.com/Kruikruik/irispoop.git
-   cd irispoop
-   npm install
-   npm run dev
-   ```
-
-4. Ouvrir <http://localhost:5173> dans Chrome ou Edge.
-
-Pour l'arrêter : `Ctrl + C` dans PowerShell. Pour le relancer plus tard : `cd $HOME\Documents\irispoop` puis `npm run dev`.
-
-### Version « finale » (plus rapide)
+Prérequis : **Node.js LTS** (<https://nodejs.org>). Ouvre **PowerShell** et colle :
 
 ```powershell
-npm run build      # vérifie TypeScript et crée le dossier dist/
+irm https://raw.githubusercontent.com/Kruikruik/irispoop/main/install.ps1 | iex
+```
+
+La commande :
+- télécharge la dernière version depuis GitHub dans `C:\dev\irispoop` (garde tes réglages et tes `node_modules`) ;
+- installe les dépendances et construit le site ;
+- active le **démarrage automatique** avec Windows (en arrière-plan, sans fenêtre) ;
+- ouvre **<http://localhost:4173>**.
+
+La même commande sert aussi à réparer une installation.
+
+## Mettre à jour depuis le site
+
+Le bouton en haut à droite (`⟳ V·xxxxxxx`) compare ta version à la dernière sur GitHub.
+Quand il affiche **UPDATE AVAILABLE** : clique dessus puis sur **INSTALL UPDATE**. Le site se met à jour, redémarre
+tout seul (1 à 2 min) et la page se recharge. Si une étape échoue, l'ancienne version reste en ligne et l'erreur s'affiche.
+
+Équivalent en ligne de commande : `cd C:\dev\irispoop` puis `npm run update`.
+
+## Lancer à la main (développement)
+
+```powershell
+cd C:\dev\irispoop
+npm install
+npm run dev        # http://localhost:5173, rechargement à chaud
+npm run build      # vérifie TypeScript et crée dist/
 npm run preview    # sert dist/ sur http://localhost:4173
 ```
 
-Le dossier `dist/` est un site statique autonome : tu peux aussi le copier sur n'importe quel serveur web (nginx, Caddy, etc.).
-
-### Y accéder depuis un autre appareil
-
-Les serveurs écoutent sur le réseau (`host: true`). Depuis ton téléphone ou un autre PC sur le même Wi-Fi ou via Tailscale :
-`http://<IP-du-PC>:5173` (ou `:4173` pour `preview`). Windows peut demander d'autoriser Node.js dans le pare-feu : accepte pour les réseaux privés.
-
-> Le navigateur exige souvent HTTPS pour certaines API sur une IP autre que `localhost`. La lecture et l'affichage marchent, mais si l'export vidéo est bloqué sur un autre appareil, fais l'export depuis le PC lui-même (`localhost`).
+Depuis un autre appareil (même Wi-Fi ou Tailscale) : `http://<IP-du-PC>:4173`. Windows peut demander d'autoriser Node.js
+dans le pare-feu : accepte pour les réseaux privés.
 
 ## Bon à savoir
 
@@ -61,4 +64,8 @@ src/
   visualizers/  InstrumentDeck.ts + 5 presets, SheetPaint.tsx, draw.ts (helpers)
   components/   TopBar, Stage (canvas + boucle de rendu), Transport, ControlPanel, ui
   utils/        Exporter.ts (PNG / vidéo), images.ts, themes.ts
+scripts/
+  update.mjs              mise à jour depuis GitHub (bouton du site, npm run update, install.ps1)
+  vite-update-plugin.ts   routes /__update/status et /__update/run du serveur
+install.ps1               installation en une ligne
 ```
