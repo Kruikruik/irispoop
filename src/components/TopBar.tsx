@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { engine } from '../audio/AudioEngine';
 import { ASPECTS, type Aspect } from '../utils/themes';
 import { Led, Segmented } from './ui';
+import { UpdateButton } from './UpdateButton';
 import { useEngine } from './useEngine';
 
 export function TopBar({
@@ -60,6 +61,8 @@ export function TopBar({
         <span className="opacity-50">SRC</span>
         <span className="truncate">{st.name || '— NO_SOURCE · DROP AN AUDIO FILE ANYWHERE —'}</span>
       </div>
+
+      <UpdateButton />
 
       <div className="flex items-center gap-3 border-l border-ink px-4 py-2">
         <span className="opacity-50">ASPECT</span>
