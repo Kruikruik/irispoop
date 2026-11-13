@@ -7,10 +7,19 @@ Vite + React + TypeScript + Tailwind CSS. Rien n'est envoyé sur un serveur : te
 
 - **Charger un son** : bouton `LOAD AUDIO` ou glisser-déposer n'importe où (MP3, WAV, FLAC, OGG, M4A).
 - **TEST SIGNAL** : beat synthétique à 120 BPM pour tester sans fichier.
-- **A0 INSTRUMENT_DECK** (par défaut) : tableau de bord d'instruments avec waveform/loudness, scope, spectre, vectorscope, cadran de mesure (BAR), piano roll des notes détectées, autoroute de notes avec score/combo, pads de notes, graphe « most played note ». S'adapte au format 16:9, 9:16, 1:1, 4:5.
+- **A0 INSTRUMENT_DECK** (par défaut) : 5 decks multi-panneaux, choisis avec les boutons `DECK 01…05` au-dessus de la scène ou dans le panneau :
+  - **01 Classic Studio** : waveform/loudness, scope, spectre, vectorscope, cadran BAR, piano roll, autoroute de notes, pads, graphe « most played » ;
+  - **02 Form & Glyph** : `01 FORM` (contours topographiques par bande SUB/LOW/MID/HIGH/AIR), `02 GLYPH` (matrice de points + séquence `X000…`), `03 ROOTS` (constellation harmonique) ;
+  - **03 Unravel & Diffuse** : `01 UNRAVEL` (fils qui s'effilochent), `02 STARWORDS` (brume d'encre + mots sur les temps), `03 TRACKER` et `04 DIFFUSE` (réagissent à ton image) ;
+  - **04 Telemetry & Trajectory** : télémétrie 8 pistes, `SOUND FORM`, `TRAJECTORY` (cube 3D), `ARCADE`, `STARS` ;
+  - **05 Watercolor Studio** : aura aquarelle, matrice de 15 signaux, mesures, et `01 SHEET` qui peint ton image en direct.
+  Les 15 modules sont aussi accessibles seuls (liste **MODULES** du panneau).
 - **A1–A5** : Freq Meters, Oscilloscope, Dot Matrix, Beat Rings, Wireframe Terrain.
-- **SHEET PAINT** : une image (JPG, PNG, WEBP, SVG, ou les 2 images par défaut) redessinée au rythme du son en 5 styles : Halftone, Scanline, ASCII, Blueprint Contour, Audio Brush (+ `REDRAW`).
-- **Palettes** : 6 thèmes en 1 clic + 3 sélecteurs de couleur avec champ hex.
+- **SHEET PAINT** : une image (JPG, PNG, WEBP, SVG, ou les 2 images par défaut) redessinée au rythme du son.
+  - 5 pinceaux **progressifs** qui partent d'une feuille blanche : *Watercolor Wash*, *Impasto Strokes*, *Silk Ribbons*, *Charcoal Diffuse*, + *Beat Tracker* (cibles `[KICK] [SNARE] [HAT]`) ;
+  - 5 styles graphiques : Halftone, Scanline, ASCII, Blueprint Contour, Audio Brush ;
+  - barre `PRINTED % · PEN · STROKES · TIME` et bouton `RESET / REDRAW`.
+- **Palettes** : 11 thèmes en 1 clic (dont OTO WARM PAPER, OTO DARK STUDIO, WATERCOLOR SKY, SUNSET EMBER, PASTEL SCORE) + 3 sélecteurs de couleur avec champ hex.
 - **Export** : `EXPORT PNG` (pleine résolution, ≥1920 px) et `RECORD VIDEO` (MP4 sous Chrome/Edge récents, sinon WebM, avec le son synchronisé). L'enregistrement s'arrête tout seul à la fin du morceau.
 - Raccourcis : `Espace` lecture/pause, `P` export PNG.
 
@@ -62,6 +71,8 @@ dans le pare-feu : accepte pour les réseaux privés.
 src/
   audio/        AudioEngine.ts (Web Audio : bandes, beats, BPM, notes), TestSignal.ts
   visualizers/  InstrumentDeck.ts + 5 presets, SheetPaint.tsx, draw.ts (helpers)
+    decks/      index.ts (decks + mises en page), DeckState.ts (analyse partagée), modules/*
+    paint/      ProgressivePainter.ts (aquarelle, impasto, soie, fusain)
   components/   TopBar, Stage (canvas + boucle de rendu), Transport, ControlPanel, ui
   utils/        Exporter.ts (PNG / vidéo), images.ts, themes.ts
 scripts/

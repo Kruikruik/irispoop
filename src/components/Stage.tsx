@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { engine } from '../audio/AudioEngine';
-import { VIS_BY_ID, type RenderParams, type VisualizerId, type VisualizerInstance } from '../visualizers';
+import { DECKS, VIS_BY_ID, type RenderParams, type VisualizerId, type VisualizerInstance } from '../visualizers';
 import type { SheetPainter, SheetParams } from '../visualizers/SheetPaint';
 import { ASPECTS, type Aspect, type Palette } from '../utils/themes';
 import type { Mode } from './ControlPanel';
@@ -10,6 +10,7 @@ import { useEngine } from './useEngine';
 export interface RenderState {
   mode: Mode;
   viz: VisualizerId;
+  deck: number;
   palette: Palette;
   stroke: number;
   detail: number;
@@ -44,6 +45,9 @@ export function Stage({
   recStart,
   label,
   status,
+  deck,
+  onDeck,
+  showDecks,
 }: {
   aspect: Aspect;
   canvasRef: RefObject<HTMLCanvasElement | null>;
@@ -53,6 +57,9 @@ export function Stage({
   recStart: number;
   label: string;
   status: string;
+  deck: number;
+  onDeck: (d: number) => void;
+  showDecks: boolean;
 }) {
   const areaRef = useRef<HTMLDivElement>(null);
   const fpsRef = useRef<HTMLSpanElement>(null);
@@ -101,6 +108,7 @@ export function Stage({
     const t0 = performance.now();
     let last = t0;
     let frames = 0;
+    let frameNo = 0;
     let fpsT = t0;
     const instances = new Map<VisualizerId, VisualizerInstance>();
     const frame = (now: number) => {
@@ -131,6 +139,9 @@ export function Stage({
         time: (now - t0) / 1000,
         dt,
         unit: Math.min(w, h) / 1000,
+        frame: ++frameNo,
+        deck: s.deck,
+        sheet: s.sheet,
       };
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.globalAlpha = 1;
@@ -163,6 +174,21 @@ export function Stage({
         </span>
         <span>{label}</span>
       </div>
+      {showDecks && (
+        <div className="absolute left-1/2 top-[3px] z-20 flex -translate-x-1/2 border border-ink bg-bg text-[9px] tracking-[0.16em]">
+          {DECKS.map((d) => (
+            <button
+              type="button"
+              key={d.id}
+              title={d.name}
+              onClick={() => onDeck(d.id)}
+              className={`px-2 py-[1px] ${d.id > 1 ? 'border-l border-ink' : ''} ${deck === d.id ? 'bg-ink text-bg' : 'hover:bg-ink/10'}`}
+            >
+              DECK {String(d.id).padStart(2, '0')}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="pointer-events-none absolute bottom-2 left-6 right-6 flex justify-between text-[9px] tracking-[0.2em] opacity-60">
         <span className={status ? 'text-accent opacity-100' : ''}>{status || 'REC_60FPS · CANVAS_2D · WEB_AUDIO'}</span>
         <span>

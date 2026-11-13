@@ -4,9 +4,10 @@ import { ControlPanel, type Mode, type Tuning } from './components/ControlPanel'
 import { Stage, type RenderState } from './components/Stage';
 import { TopBar } from './components/TopBar';
 import { Transport } from './components/Transport';
-import { VIS_BY_ID, type VisualizerId } from './visualizers';
+import { DECKS, VIS_BY_ID, type VisualizerId } from './visualizers';
 import { SHEET_STYLES, SheetPainter, type SheetImage, type SheetParams } from './visualizers/SheetPaint';
 import { VideoRecorder, canRecord, downloadBlob, exportPNG, pickMime } from './utils/Exporter';
+import { setSheetImage } from './visualizers/imageGrid';
 import { fileToSheetImage, isAudioFile, isImageFile, makeDefaultImages } from './utils/images';
 import { THEMES, type Aspect, type Palette } from './utils/themes';
 
@@ -15,8 +16,9 @@ export default function App() {
   const [palette, setPalette] = useState<Palette>({ bg: THEMES[0].bg, ink: THEMES[0].ink, accent: THEMES[0].accent });
   const [mode, setMode] = useState<Mode>('visualizer');
   const [viz, setViz] = useState<VisualizerId>('deck');
+  const [deck, setDeck] = useState(1);
   const [tuning, setTuning] = useState<Tuning>({ gainDb: 0, smoothing: 0.6, stroke: 1.5, detail: 0.5, invertInk: false });
-  const [sheet, setSheet] = useState<SheetParams>({ style: 'halftone', threshold: 0.5, invert: false, distortion: 0.55, redraw: 0 });
+  const [sheet, setSheet] = useState<SheetParams>({ style: 'impasto', threshold: 0.5, invert: false, distortion: 0.55, redraw: 0 });
   const [images, setImages] = useState<SheetImage[]>(() => makeDefaultImages());
   const [imageId, setImageId] = useState<string>(() => 'default-orbital');
   const [recording, setRecording] = useState(false);
@@ -36,12 +38,13 @@ export default function App() {
 
   // everything the render loop needs, read every frame without restarting the loop
   const stateRef = useRef<RenderState>({
-    mode, viz, palette: effective, stroke: tuning.stroke, detail: tuning.detail,
+    mode, viz, deck, palette: effective, stroke: tuning.stroke, detail: tuning.detail,
     sensitivity: 1, smoothing: tuning.smoothing, sheet,
   });
   stateRef.current = {
     mode,
     viz,
+    deck,
     palette: effective,
     stroke: tuning.stroke,
     detail: tuning.detail,
@@ -59,7 +62,9 @@ export default function App() {
   }, [effective]);
 
   useEffect(() => {
-    painter.setImage(images.find((i) => i.id === imageId)?.canvas ?? null);
+    const c = images.find((i) => i.id === imageId)?.canvas ?? null;
+    painter.setImage(c);
+    setSheetImage(c);
   }, [images, imageId, painter]);
 
   const flash = useCallback((msg: string) => {
@@ -207,7 +212,7 @@ export default function App() {
 
   const label =
     mode === 'visualizer'
-      ? `VISUALIZER // ${VIS_BY_ID[viz].code} ${VIS_BY_ID[viz].label}`
+      ? `VISUALIZER // ${VIS_BY_ID[viz].code} ${VIS_BY_ID[viz].label}${viz === 'deck' ? ` · ${String(deck).padStart(2, '0')} ${DECKS[deck - 1].name}` : ''}`
       : `SHEET_MODE // ${SHEET_STYLES.find((s) => s.id === sheet.style)?.label ?? ''}`;
 
   return (
@@ -223,6 +228,9 @@ export default function App() {
           recStart={recStart}
           label={label}
           status={status}
+          deck={deck}
+          onDeck={setDeck}
+          showDecks={mode === 'visualizer' && viz === 'deck'}
         />
         <ControlPanel
           palette={palette}
@@ -231,6 +239,8 @@ export default function App() {
           onMode={setMode}
           viz={viz}
           onViz={setViz}
+          deck={deck}
+          onDeck={setDeck}
           tuning={tuning}
           onTuning={setTuning}
           sheet={sheet}

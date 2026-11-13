@@ -7,9 +7,17 @@ import { useRef } from 'react';
 import type { AudioFeatures } from '../audio/AudioEngine';
 import type { RenderParams } from './types';
 import { Btn, Slider, Toggle } from '../components/ui';
+import { boxBlur, marchingSquares } from './contour';
+import { PEN_NAMES, ProgressivePainter, type PaintStyle } from './paint/ProgressivePainter';
+import { TrackerView } from './decks/TrackerView';
+import { DeckState } from './decks/DeckState';
+import { label as lbl, fmtClock } from './decks/kit';
 import { LogBands, RippleField, TAU, clamp, cornerMarks, fitRect, hash01, regMark, rgba, text, FONT, type Rect } from './draw';
 
-export type SheetStyle = 'halftone' | 'scanline' | 'ascii' | 'contour' | 'brush';
+export type SheetStyle = 'halftone' | 'scanline' | 'ascii' | 'contour' | 'brush' | PaintStyle | 'tracker';
+
+const PROGRESSIVE: SheetStyle[] = ['watercolor', 'impasto', 'silk', 'charcoal'];
+export const isProgressive = (s: SheetStyle): s is PaintStyle => PROGRESSIVE.includes(s);
 
 export const SHEET_STYLES: { id: SheetStyle; code: string; label: string; desc: string }[] = [
   { id: 'halftone', code: 'S1', label: 'HALFTONE_DOT', desc: 'darkness → dot size · bass pulse' },
@@ -17,6 +25,11 @@ export const SHEET_STYLES: { id: SheetStyle; code: string; label: string; desc: 
   { id: 'ascii', code: 'S3', label: 'GLYPH_ASCII', desc: 'monospace glyphs · hat flashes' },
   { id: 'contour', code: 'S4', label: 'BLUEPRINT_CONTOUR', desc: 'iso-lines · beat jitter' },
   { id: 'brush', code: 'S5', label: 'AUDIO_BRUSH', desc: 'progressive paint reveal' },
+  { id: 'watercolor', code: 'P1', label: 'WATERCOLOR_WASH', desc: 'pigment blooms · bleed on kick' },
+  { id: 'impasto', code: 'P2', label: 'IMPASTO_STROKES', desc: 'broad washes → focal detail' },
+  { id: 'silk', code: 'P3', label: 'SILK_RIBBONS', desc: 'strands along contours' },
+  { id: 'charcoal', code: 'P4', label: 'CHARCOAL_DIFFUSE', desc: 'ink clouds condense on beats' },
+  { id: 'tracker', code: 'P5', label: 'BEAT_TRACKER', desc: '[KICK] [SNARE] [HAT] targets' },
 ];
 
 export interface SheetParams {
@@ -48,70 +61,6 @@ interface Grid {
 const RAMP = ['·', '-', '+', '—', 'X', '0', '▪'];
 const FLASH = ['X', '0', '▪', '+'];
 
-function boxBlur(src: Float32Array, cols: number, rows: number): Float32Array {
-  const out = new Float32Array(src.length);
-  for (let y = 0; y < rows; y++) {
-    for (let x = 0; x < cols; x++) {
-      let s = 0;
-      let n = 0;
-      for (let dy = -1; dy <= 1; dy++) {
-        const yy = y + dy;
-        if (yy < 0 || yy >= rows) continue;
-        for (let dx = -1; dx <= 1; dx++) {
-          const xx = x + dx;
-          if (xx < 0 || xx >= cols) continue;
-          s += src[yy * cols + xx];
-          n++;
-        }
-      }
-      out[y * cols + x] = s / n;
-    }
-  }
-  return out;
-}
-
-/** Marching squares → flat segment list [x1,y1,x2,y2,...] in normalised 0..1 coords. */
-function marchingSquares(field: Float32Array, cols: number, rows: number, level: number): Float32Array {
-  const out: number[] = [];
-  const sx = 1 / (cols - 1);
-  const sy = 1 / (rows - 1);
-  const t = (p: number, q: number) => {
-    const d = q - p;
-    return d === 0 ? 0.5 : (level - p) / d;
-  };
-  const seg = (x1: number, y1: number, x2: number, y2: number) => out.push(x1 * sx, y1 * sy, x2 * sx, y2 * sy);
-  for (let y = 0; y < rows - 1; y++) {
-    for (let x = 0; x < cols - 1; x++) {
-      const i = y * cols + x;
-      const a = field[i];
-      const b = field[i + 1];
-      const c = field[i + cols + 1];
-      const d = field[i + cols];
-      let idx = 0;
-      if (a >= level) idx |= 8;
-      if (b >= level) idx |= 4;
-      if (c >= level) idx |= 2;
-      if (d >= level) idx |= 1;
-      if (idx === 0 || idx === 15) continue;
-      const tx = x + t(a, b), ty = y; // top
-      const rx = x + 1, ry = y + t(b, c); // right
-      const bx = x + t(d, c), by = y + 1; // bottom
-      const lx = x, ly = y + t(a, d); // left
-      switch (idx) {
-        case 1: case 14: seg(lx, ly, bx, by); break;
-        case 2: case 13: seg(bx, by, rx, ry); break;
-        case 3: case 12: seg(lx, ly, rx, ry); break;
-        case 4: case 11: seg(tx, ty, rx, ry); break;
-        case 6: case 9: seg(tx, ty, bx, by); break;
-        case 7: case 8: seg(lx, ly, tx, ty); break;
-        case 5: seg(lx, ly, bx, by); seg(tx, ty, rx, ry); break;
-        case 10: seg(lx, ly, tx, ty); seg(bx, by, rx, ry); break;
-      }
-    }
-  }
-  return new Float32Array(out);
-}
-
 export class SheetPainter {
   private img: HTMLCanvasElement | null = null;
   private sampler: HTMLCanvasElement | null = null;
@@ -130,10 +79,14 @@ export class SheetPainter {
   private bRedraw = -1;
   private bLastX = 0.5;
   private bLastY = 0.5;
+  private painter = new ProgressivePainter('impasto');
+  private tracker = new TrackerView();
+  private state = new DeckState();
 
   setImage(c: HTMLCanvasElement | null): void {
     if (c === this.img) return;
     this.img = c;
+    this.painter.setImage(c);
     this.grids.clear();
     this.contours.clear();
     this.resetBrush();
@@ -192,9 +145,10 @@ export class SheetPainter {
     return grid;
   }
 
-  draw(ctx: CanvasRenderingContext2D, w: number, h: number, f: AudioFeatures, p: RenderParams, sp: SheetParams): void {
+  draw(ctx: CanvasRenderingContext2D, w: number, h: number, f: AudioFeatures, p: RenderParams, sp: SheetParams, opts: { bare?: boolean } = {}): void {
     const u = p.unit;
     const { ink } = p.palette;
+    this.state.update(f, p.dt, p.frame ?? -1);
     this.ripples.update(p.dt);
     if (f.kick) this.ripples.spawn(0.9 + f.bass * 0.4, 0.9);
 
@@ -203,8 +157,10 @@ export class SheetPainter {
       return;
     }
     const aspect = this.img.width / Math.max(1, this.img.height);
-    const margin = Math.min(w, h) * (sp.style === 'contour' ? 0.11 : 0.075);
-    const rect = fitRect(w, h, aspect, margin);
+    const bar = 46 * u; // telemetry bar
+    const margin = opts.bare ? 0 : Math.min(w, h) * (sp.style === 'contour' ? 0.11 : 0.06);
+    const rect = fitRect(w, h - bar - (opts.bare ? 0 : 10 * u), aspect, margin);
+    if (opts.bare) rect.y = 0;
     const th = sp.threshold;
     const tone = (d: number) => clamp((d - th) * 2.2 + 0.5);
 
@@ -224,14 +180,68 @@ export class SheetPainter {
       case 'brush':
         this.brush(ctx, rect, f, p, sp, tone);
         break;
+      case 'tracker':
+        this.tracker.draw(ctx, rect, this.img, f, p, { key: this.state.key, fit: 'contain' });
+        break;
+      default:
+        if (isProgressive(sp.style)) {
+          this.painter.setStyle(sp.style);
+          this.painter.draw(ctx, rect, f, p, { distortion: sp.distortion, redraw: sp.redraw, invert: sp.invert });
+          if (this.painter.progress < 1) {
+            ctx.strokeStyle = p.palette.accent;
+            ctx.lineWidth = Math.max(1, 1.5 * u);
+            ctx.beginPath();
+            regMark(ctx, rect.x + this.painter.headX * rect.w, rect.y + this.painter.headY * rect.h, (7 + f.beat * 8) * u);
+            ctx.stroke();
+          }
+        }
     }
 
+    this.telemetry(ctx, w, h, rect, f, p, sp, opts.bare === true);
+    if (opts.bare) return;
     if (sp.style !== 'contour') {
       cornerMarks(ctx, { x: rect.x - 10 * u, y: rect.y - 10 * u, w: rect.w + 20 * u, h: rect.h + 20 * u }, 16 * u, rgba(ink, 0.6), Math.max(1, u));
     }
     const meta = SHEET_STYLES.find((s) => s.id === sp.style);
     text(ctx, `SHEET_MODE // ${meta?.label ?? ''}`, rect.x - 10 * u, rect.y - 22 * u, 12 * u, ink, 'left', 'alphabetic', 700);
     text(ctx, `THR ${th.toFixed(2)} · PULSE ${sp.distortion.toFixed(2)}${sp.invert ? ' · INV' : ''}`, rect.x + rect.w + 10 * u, rect.y - 22 * u, 11 * u, rgba(ink, 0.55), 'right');
+  }
+
+  /** PRINTED % · PEN · STROKES · TIME */
+  private telemetry(ctx: CanvasRenderingContext2D, w: number, h: number, rect: Rect, f: AudioFeatures, p: RenderParams, sp: SheetParams, bare: boolean): void {
+    const u = p.unit;
+    const { ink, accent } = p.palette;
+    let printed = 1;
+    let strokes = '—';
+    let time = fmtClock(f.time);
+    if (isProgressive(sp.style)) {
+      printed = this.painter.progress;
+      strokes = String(this.painter.strokes);
+      time = fmtClock(this.painter.elapsed);
+    } else if (sp.style === 'brush') {
+      printed = this.bOrder.length ? this.bCursor / this.bOrder.length : 0;
+      strokes = String(this.bStrokes.length / 6);
+    }
+    const pen = isProgressive(sp.style) ? PEN_NAMES[sp.style] : (SHEET_STYLES.find((s) => s.id === sp.style)?.label ?? '').split('_')[0];
+    const x0 = bare ? 0 : rect.x;
+    const yL = h - 30 * u;
+    const items: [string, string][] = [
+      ['PRINTED', `${Math.floor(printed * 100)} %`],
+      ['PEN', pen.charAt(0) + pen.slice(1).toLowerCase()],
+      ['STROKES', strokes],
+      ['TIME', time],
+    ];
+    const colW = Math.min(150 * u, (bare ? w : rect.w) / 4.4);
+    items.forEach(([k, v], i) => {
+      lbl(ctx, k, x0 + i * colW, yL, 9.5 * u, rgba(ink, 0.5), 'left', 500, 0.14);
+      lbl(ctx, v, x0 + i * colW, yL + 19 * u, 15 * u, ink, 'left', 500, 0.02);
+    });
+    // progress hairline
+    const lw = bare ? w : rect.w;
+    ctx.fillStyle = rgba(ink, 0.12);
+    ctx.fillRect(x0, yL - 18 * u, lw, Math.max(1, 1.5 * u));
+    ctx.fillStyle = accent;
+    ctx.fillRect(x0, yL - 18 * u, lw * printed, Math.max(1, 1.5 * u));
   }
 
   /* ───────── S1 halftone ───────── */
@@ -530,10 +540,9 @@ export class SheetPainter {
 
     ctx.drawImage(this.bPaint, rect.x, rect.y, rect.w, rect.h);
 
-    // brush head + progress
-    const { ink, accent } = p.palette;
+    // brush head
+    const { accent } = p.palette;
     const done = this.bCursor >= this.bOrder.length;
-    const prog = this.bOrder.length ? this.bCursor / this.bOrder.length : 0;
     if (!done) {
       const hx = rect.x + this.bLastX * rect.w;
       const hy = rect.y + this.bLastY * rect.h;
@@ -544,19 +553,6 @@ export class SheetPainter {
       regMark(ctx, hx, hy, r);
       ctx.stroke();
     }
-    const by = rect.y + rect.h + 22 * u;
-    ctx.fillStyle = rgba(ink, 0.15);
-    ctx.fillRect(rect.x, by, rect.w, 3 * u);
-    ctx.fillStyle = accent;
-    ctx.fillRect(rect.x, by, rect.w * prog, 3 * u);
-    text(
-      ctx,
-      done ? 'PAINT 100% — COMPLETE · PRESS REDRAW' : `PAINT ${(prog * 100).toFixed(0).padStart(3, '0')}% · STROKES ${this.bStrokes.length / 6}`,
-      rect.x,
-      by + 18 * u,
-      11 * u,
-      ink,
-    );
   }
 
   private paintStroke(pc: CanvasRenderingContext2D, pw: number, ph: number, s: number, p: RenderParams, lwBase: number): void {
@@ -662,7 +658,7 @@ export function SheetControls({
         ))}
       </div>
       <Btn className="w-full" variant="accent" onClick={() => set('redraw', params.redraw + 1)} title="Reset the progressive paint cycle">
-        ↺ REDRAW
+        ↺ RESET / REDRAW
       </Btn>
       <Slider label="CONTRAST_THR" value={params.threshold} min={0.05} max={0.95} onChange={(v) => set('threshold', v)} />
       <Slider label="PULSE_AMT" value={params.distortion} min={0} max={1} onChange={(v) => set('distortion', v)} />

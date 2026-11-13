@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { Palette } from '../utils/themes';
 import { THEMES, samePalette } from '../utils/themes';
-import { VISUALIZERS, type VisualizerId } from '../visualizers';
+import { DECKS, MODULE_VIEWS, VISUALIZERS, type VisualizerId } from '../visualizers';
 import { SheetControls, type SheetImage, type SheetParams } from '../visualizers/SheetPaint';
 import { ColorField, Section, Segmented, Slider, Toggle } from './ui';
 
@@ -27,6 +27,8 @@ export function ControlPanel(props: {
   onMode: (m: Mode) => void;
   viz: VisualizerId;
   onViz: (v: VisualizerId) => void;
+  deck: number;
+  onDeck: (d: number) => void;
   tuning: Tuning;
   onTuning: (t: Tuning) => void;
   sheet: SheetParams;
@@ -117,21 +119,53 @@ export function ControlPanel(props: {
           onChange={(m) => props.onMode(m as Mode)}
         />
         {mode === 'visualizer' ? (
-          <div className="border border-ink">
-            {VISUALIZERS.map((v, i) => (
-              <button
-                type="button"
-                key={v.id}
-                onClick={() => props.onViz(v.id)}
-                className={`flex w-full items-center gap-2 px-2 py-2 text-left text-[10px] tracking-[0.14em] ${i ? 'border-t border-ink/30' : ''} ${
-                  props.viz === v.id ? 'bg-ink text-bg' : 'hover:bg-ink/10'
-                }`}
-              >
-                <span className={props.viz === v.id ? 'text-accent' : 'opacity-50'}>{v.code}</span>
-                <span className="flex-1">{v.label}</span>
-                <span className="text-[8px] opacity-60">{v.desc}</span>
-              </button>
-            ))}
+          <div className="space-y-2">
+            <div className="border border-ink">
+              {VISUALIZERS.map((v, i) => (
+                <div key={v.id}>
+                  <button
+                    type="button"
+                    onClick={() => props.onViz(v.id)}
+                    className={`flex w-full items-center gap-2 px-2 py-2 text-left text-[10px] tracking-[0.14em] ${i ? 'border-t border-ink/30' : ''} ${
+                      props.viz === v.id ? 'bg-ink text-bg' : 'hover:bg-ink/10'
+                    }`}
+                  >
+                    <span className={props.viz === v.id ? 'text-accent' : 'opacity-50'}>{v.code}</span>
+                    <span className="flex-1">{v.label}</span>
+                    <span className="text-[8px] opacity-60">{v.desc}</span>
+                  </button>
+                  {v.id === 'deck' && props.viz === 'deck' && (
+                    <div className="border-t border-ink/30 bg-ink/5 py-1">
+                      {DECKS.map((d) => (
+                        <button
+                          type="button"
+                          key={d.id}
+                          onClick={() => props.onDeck(d.id)}
+                          className={`flex w-full items-center gap-2 py-1 pl-6 pr-2 text-left text-[9px] tracking-[0.14em] ${props.deck === d.id ? 'text-accent' : 'opacity-70 hover:opacity-100'}`}
+                        >
+                          <span>{props.deck === d.id ? '▶' : '·'}</span>
+                          <span>DECK {String(d.id).padStart(2, '0')}</span>
+                          <span className="flex-1 truncate text-right">{d.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="text-[9px] tracking-[0.18em] opacity-60">MODULES</div>
+            <div className="grid grid-cols-3 gap-1">
+              {MODULE_VIEWS.map((v) => (
+                <button
+                  type="button"
+                  key={v.id}
+                  onClick={() => props.onViz(v.id)}
+                  className={`h-6 truncate border px-1 text-[8.5px] tracking-[0.12em] ${props.viz === v.id ? 'border-ink bg-ink text-bg' : 'border-ink/30 hover:border-ink'}`}
+                >
+                  {v.label}
+                </button>
+              ))}
+            </div>
           </div>
         ) : (
           <SheetControls

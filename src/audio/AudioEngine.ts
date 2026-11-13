@@ -50,6 +50,8 @@ export interface AudioFeatures {
   duration: number;
   /** Whole-file peak overview (null for the live test signal). */
   overview: Float32Array | null;
+  /** Stereo width 0 (mono) .. 1 (wide), from side/mid energy. */
+  width: number;
 }
 
 export type SourceKind = 'none' | 'file' | 'test';
@@ -125,6 +127,10 @@ export class AudioEngine {
   private snareO: Onset = { ema: 0.02, last: 0, refractory: 0.12, k: 2.0, floor: 0.03 };
   private hatO: Onset = { ema: 0.02, last: 0, refractory: 0.07, k: 2.0, floor: 0.025 };
   private pitch: AnalyserNode | null = null;
+  private anL: AnalyserNode | null = null;
+  private anR: AnalyserNode | null = null;
+  private bufL = new Float32Array(1024);
+  private bufR = new Float32Array(1024);
   private pitchDb = new Float32Array(PITCH_FFT / 2);
   private noteRaw = new Float32Array(128);
   private noteOnTime = new Float32Array(128);
@@ -153,6 +159,7 @@ export class AudioEngine {
       time: 0,
       duration: 0,
       overview: null,
+      width: 0,
     };
     const a = new Audio();
     a.crossOrigin = 'anonymous';
@@ -211,6 +218,15 @@ export class AudioEngine {
     bus.connect(detector);
     bus.connect(recDest);
     bus.connect(pitch);
+    const split = ctx.createChannelSplitter(2);
+    const anL = ctx.createAnalyser();
+    const anR = ctx.createAnalyser();
+    anL.fftSize = anR.fftSize = 1024;
+    bus.connect(split);
+    split.connect(anL, 0);
+    split.connect(anR, 1);
+    this.anL = anL;
+    this.anR = anR;
 
     const media = ctx.createMediaElementSource(this.audio);
     media.connect(bus);
@@ -388,6 +404,7 @@ export class AudioEngine {
       for (let i = 0; i < 128; i++) f.noteLevel[i] *= d;
       for (let i = 0; i < 12; i++) f.chroma[i] *= d;
       f.activeNotes = [];
+      f.width *= d;
       f.active = false;
       f.time = this.currentTime;
       f.duration = this.duration;
@@ -502,6 +519,20 @@ export class AudioEngine {
     } else f.beatPhase = Math.min(0.99, f.beatPhase + dt * 2);
 
     this.detectNotes(dt, now);
+    if (this.anL && this.anR) {
+      this.anL.getFloatTimeDomainData(this.bufL);
+      this.anR.getFloatTimeDomainData(this.bufR);
+      let mid = 0;
+      let side = 0;
+      for (let i = 0; i < this.bufL.length; i++) {
+        const m = this.bufL[i] + this.bufR[i];
+        const s = this.bufL[i] - this.bufR[i];
+        mid += m * m;
+        side += s * s;
+      }
+      const wv = clamp01(Math.sqrt(side / (mid + 1e-9)) * 1.6);
+      f.width += (wv - f.width) * (1 - Math.exp(-dt * 4));
+    }
     f.time = this.currentTime;
     f.duration = this.duration;
     f.overview = this.source === 'file' ? this.overview : null;

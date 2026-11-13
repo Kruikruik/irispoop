@@ -11,6 +11,11 @@ export interface Theme extends Palette {
 
 export const THEMES: Theme[] = [
   { id: 'glacier', name: 'GLACIER', bg: '#E7ECEF', ink: '#22303A', accent: '#3B9BE0' },
+  { id: 'oto-paper', name: 'OTO WARM PAPER', bg: '#EAE8E1', ink: '#1A1A1A', accent: '#D94E4E' },
+  { id: 'oto-dark', name: 'OTO DARK STUDIO', bg: '#141517', ink: '#E6E6E6', accent: '#4ECDC4' },
+  { id: 'watercolor', name: 'WATERCOLOR SKY', bg: '#ECE9DF', ink: '#1E3A5F', accent: '#6BA3D6' },
+  { id: 'ember', name: 'SUNSET EMBER', bg: '#121212', ink: '#F4A261', accent: '#FF5E1A' },
+  { id: 'pastel', name: 'PASTEL SCORE', bg: '#EAE9E4', ink: '#22252A', accent: '#7FB3D5' },
   { id: 'studio', name: 'STUDIO PAPER', bg: '#F4F3EE', ink: '#111111', accent: '#FF4D00' },
   { id: 'amber', name: 'DARK AMBER', bg: '#0D0C0B', ink: '#F59E0B', accent: '#FFFFFF' },
   { id: 'acid', name: 'ACID MATRIX', bg: '#080A08', ink: '#00FF66', accent: '#E0FFE8' },
