@@ -1,4 +1,5 @@
 /* PNG snapshot + synced video recording (canvas stream + Web Audio stream → MediaRecorder). */
+import { defragmentMp4, isFragmentedMp4 } from './mp4';
 
 export function timestamp(): string {
   const d = new Date();
@@ -88,13 +89,23 @@ export class VideoRecorder {
     const rec = this.rec;
     if (!rec || rec.state === 'inactive') return Promise.resolve(null);
     return new Promise((resolve) => {
-      rec.onstop = () => {
+      rec.onstop = async () => {
         // stop only the canvas video track; the audio track belongs to the engine and is reused
         this.stream?.getVideoTracks().forEach((t) => t.stop());
-        const blob = new Blob(this.chunks, { type: this.mime.split(';')[0] || 'video/webm' });
+        const type = this.mime.split(';')[0] || 'video/webm';
+        let blob = new Blob(this.chunks, { type });
         this.chunks = [];
         this.rec = null;
         this.stream = null;
+        if (this.ext === 'mp4') {
+          // Chrome writes a fragmented MP4: rewrite it as a standard MP4 so every player sees the full length
+          try {
+            const buf = await blob.arrayBuffer();
+            if (isFragmentedMp4(buf)) blob = new Blob([defragmentMp4(buf)], { type: 'video/mp4' });
+          } catch {
+            /* keep the original recording if anything unexpected comes up */
+          }
+        }
         resolve({ blob, name: `irisviz_${this.size}_${timestamp()}.${this.ext}` });
       };
       rec.stop();
